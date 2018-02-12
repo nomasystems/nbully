@@ -1,0 +1,52 @@
+%APPLICATION% Overview
+Design
+Version: %VSN%
+
+Authors: [Nomasystems, S.L. info@nomasystems.com]
+
+%%toc
+
+= MODULES =
+
+%MODULES%
+
+
+= DESCRIPTION =
+
+
+= ARCHITECTURE =
+
+
+= DATATYPES =
+
+Types are defined in the **%APPLICATION%.hrl** header file, in order to use it
+add the following declaration:
+
+```
+-include_lib("%APPLICATION%/include/%APPLICATION%.hrl").
+```
+
+This header file is declares the following datatypes:
+
+%!include: ``../include/%APPLICATION%.hrl``
+
+
+= ENVIRONMENT =
+
+The **%APPLICATION%** application requires some configuration parameters to
+be present on startup.
+
+
+== MANDATORY PARAMETERS ==
+
+: :
+
+
+== OPTIONAL PARAMETERS ==
+
+: :
+
+
+= SEE ALSO =
+
+%MODULES%

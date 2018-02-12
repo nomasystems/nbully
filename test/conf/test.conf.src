@@ -1,0 +1,4 @@
+%%% -*- mode:erlang -*-
+{paths, ["%TEST_DIR%/stubs", "%TEST_DIR%/../../nlib/ebin", "%TEST_DIR%"]}.
+%{tpl_cases, [{%CASE%, [%MODULES%]}]}.
+%{tp_cases, []}.

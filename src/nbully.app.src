@@ -1,0 +1,8 @@
+%%% -*- mode:erlang -*-
+{application, nbully,
+ [{description, ""},
+  {vsn, "1.0.0"},
+  {registered, []},
+  {applications, [kernel, stdlib, nlib]},
+%  {mod, {nbully, []}},
+  {env, []}]}.

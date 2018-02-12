@@ -1,0 +1,54 @@
+%%outfile(%F)
+%APPLICATION%
+Version: %VSN%
+
+Authors: [Nomasystems, S.L. info@nomasystems.com]
+
+%%toc
+
+= MODULE =
+
+%%outfile(%F)
+
+
+= DESCRIPTION =
+
+%APPLICATION% application module.
+
+
+= START/STOP EXPORTS =
+
+Start/stop functions.
+
+
+== start() -> Result ==
+
+: Types
+ : Result = {ok, Pid} | {error, Reason}
+ : Pid = pid()
+ : Reason = term()
+
+
+Starts the %APPLICATION% application.
+
+
+== stop() -> ok ==
+
+
+Stops the %APPLICATION% application.
+
+
+= EXPORTS =
+
+Exported functions.
+
+
+== () ->  ==
+
+: Types
+ :  =
+
+
+= SEE ALSO =
+
+%APPLICATION%(1)

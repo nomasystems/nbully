@@ -1,0 +1,7 @@
+%%% -*- mode:erlang -*-
+{logdir, "%TEST_DIR%/log"}.
+{config, "%TEST_DIR%/conf/test.conf"}.
+{alias, test, "%TEST_DIR%"}.
+{suites, test, all}.
+%{skip_suites, test, [SUITE], "not needed now"}.
+%{skip_cases, test, _SUITE, [CASES], "not needed now"}.
