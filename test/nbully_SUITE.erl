@@ -44,16 +44,22 @@ suite() ->
 %%%-----------------------------------------------------------------------------
 init_per_suite(Conf) ->
   lists:foreach(fun(X) -> code:add_path(X) end, ct:get_config(paths, [])),
-  {A1, A2, A3} = erlang:timestamp(),
-  random:seed(A1, A2, A3),
   dbg:tracer(),
   dbg:p(all, [c, sos, sol]),
+  Apps = ct:get_config(apps, []),
+  Env = ct:get_config(env, []),
+  [ok = application:load(App) || App <- Apps],
+  [ok = application:set_env(App, K, V) || {App, KeyVal} <- Env, {K,V} <- KeyVal],
+  [ok = application:start(App) || App <- Apps],
   Conf.
 
 %%%-----------------------------------------------------------------------------
 %%% END SUITE EXPORTS
 %%%-----------------------------------------------------------------------------
 end_per_suite(_Conf) ->
+  Apps = ct:get_config(apps, []),
+  [ok = application:stop(App) || App <- Apps],
+  [ok = application:unload(App) || App <- Apps],
   ok.
 
 %%%-----------------------------------------------------------------------------
@@ -81,10 +87,15 @@ api() ->
   [{userdata, [{doc, "Tests the public API."}]}].
 
 api(_Conf) ->
+  Apps = application:which_applications(),
+  ct:print("Applications: ~p~n", [Apps]),
   start_nodes(9),
   timer:sleep(500),
-  Leader = lists:max(all_nodes()),
-  ct:print("Leader: ~p~n", [Leader]),
+  Nodes = all_nodes(),
+  Leader = lists:max(Nodes),
+  ct:print("Max ~p from nodes ~p~n", [Leader, Nodes]),
+  Leader2 = nbully:leader(),
+  ct:print("Bully leader ~p~n", [Leader2]),
   {true, Leader} = check_consensus(),
   stop_nodes(9),
   ok.
@@ -168,7 +179,8 @@ check_consensus() ->
 start_node(N) ->
   {ok, Node} = ct_slave:start(list_to_atom("node"++integer_to_list(N))),
   wait_for_node(Node),
-  rpc:call(Node, nbully, start_link, []),
+  lists:foreach(fun(X) -> rpc:call(Node, code, add_path, [X]) end, ct:get_config(paths, [])),
+  rpc:call(Node, application, start, [nbully]),
   Node.
 
 start_nodes(0) ->
@@ -180,7 +192,7 @@ start_nodes(N) ->
 stop_node(N) ->
   {ok, Host} = inet:gethostname(),
   Node = list_to_atom("node"++integer_to_list(N)++"@"++Host),
-  rpc:call(Node, nbully, stop, []),
+  rpc:call(Node, application, stop, [nbully]),
   ct_slave:stop(list_to_atom("node"++integer_to_list(N))).
 
 

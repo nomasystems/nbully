@@ -14,31 +14,42 @@
 %%% MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR
 %%% NON-INFRINGEMENT. Please see the License for the specific language
 %%% governing rights and limitations under the License.
--module(nbully).
--behaviour(application).
+-module(nbully_sup).
+-behaviour(supervisor).
 
+%%% INCLUDE FILES
 
 %%% START/STOP EXPORTS
--export ([start/2,
-          stop/1]).
+-export([start_link/0, stop/0]).
 
-%%% API EXPORTS
-%-export([leader/0, subscribe/0, unsubscribe/0]).
--export([leader/0]).
+%%% INTERNAL EXPORTS
+-export([init/1]).
+
+%%% MACROS
 
 %%%-----------------------------------------------------------------------------
 %%% START/STOP EXPORTS
 %%%-----------------------------------------------------------------------------
-start(_, _) ->
-  nbully_sup:start_link().
+start_link() ->
+  supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 
-stop(_) ->
-  nbully_sup:stop().
+stop() ->
+  ok = nbully_wrk:stop(),
+  ok = supervisor:delete_child(?MODULE, nbully_wkr).
 
 
 %%%-----------------------------------------------------------------------------
-%%% API EXPORTS
+%%% INTERNAL EXPORTS
 %%%-----------------------------------------------------------------------------
-leader() ->
-  nbully_wrk:leader().
+init([]) ->
+  {ok, {{one_for_one, 1, 60}, [child(nbully_wrk, nbully_wrk, start_link, [], transient)]}}.
+
+%%%-----------------------------------------------------------------------------
+%%% INTERNAL FUNCTIONS
+%%%-----------------------------------------------------------------------------
+child(Id, Mod, Fun, Args, Restart, Type) ->
+  {Id, {Mod, Fun, Args}, Restart, 5000, Type, [Mod]}.
+ 
+child(Id, Mod, Fun, Args, Restart) ->
+  child(Id, Mod, Fun, Args, Restart, worker).
