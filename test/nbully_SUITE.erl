@@ -87,16 +87,12 @@ api() ->
   [{userdata, [{doc, "Tests the public API."}]}].
 
 api(_Conf) ->
-  Apps = application:which_applications(),
-  ct:print("Applications: ~p~n", [Apps]),
   start_nodes(9),
-  timer:sleep(500),
   Nodes = all_nodes(),
   Leader = lists:max(Nodes),
-  ct:print("Max ~p from nodes ~p~n", [Leader, Nodes]),
-  Leader2 = nbully:leader(),
-  ct:print("Bully leader ~p~n", [Leader2]),
-  {true, Leader} = check_consensus(),
+  timer:sleep(500),
+  Leader = nbully:leader(),
+  Leader = wait_consensus(),
   stop_nodes(9),
   ok.
 
@@ -105,6 +101,16 @@ api_neg() ->
   [{userdata, [{doc, "Tests the public API with invalid input data."}]}].
 
 api_neg(_Conf) ->
+  start_nodes(9),
+  Nodes = all_nodes(),
+  Leader = lists:max(Nodes),
+  rpc:call(Leader, application, stop, [nbully]),
+  
+  timer:sleep(500),
+  NewLeader = nbully:leader(),
+  true = NewLeader /= Leader,
+  NewLeader = wait_consensus(),
+  stop_nodes(9),
   ok.
 
 
@@ -115,25 +121,24 @@ fault_tolerance(_Conf) ->
   start_nodes(9),
   timer:sleep(500),
   Leader = lists:max(all_nodes()),
-  {true, Leader} = check_consensus(),
+  Leader = wait_consensus(),
 
   stop_node(9),
   NewLeader = lists:max(all_nodes()),
-  {true, NewLeader} = check_consensus(),
+  NewLeader = wait_consensus(),
 
   stop_node(6),
   NewLeader = lists:max(all_nodes()),
-  {true, NewLeader} = check_consensus(),
+  NewLeader = wait_consensus(),
 
   stop_node(7),
   stop_node(8),
   NewLeader2 = lists:max(all_nodes()),
-  {true, NewLeader2} = check_consensus(),
+  NewLeader2 = wait_consensus(),
 
-  start_node(9),
-  timer:sleep(500), %time to stabilize
+  start_node(9, true),
   Leader = lists:max(all_nodes()),
-  {true, Leader} = check_consensus(),
+  Leader = wait_consensus(),
  
   stop_nodes(9),
   ok.
@@ -162,7 +167,7 @@ performance_test(_Conf) ->
 all_nodes() ->
   nodes().
 
-check_consensus() ->
+wait_consensus() ->
   Nodes = all_nodes(),
   Leaders = [rpc:call(Node, nbully, leader, []) || Node <- Nodes],
   ct:print("Check consensus~nNodes: ~p~nLeaders: ~p~n~n", [Nodes, Leaders]),
@@ -173,20 +178,32 @@ check_consensus() ->
              (X, {true, Node}) ->
               {X == Node, X}
           end,
-  lists:foldl(Check, {true, undefined}, Leaders).
+  case lists:foldl(Check, {true, undefined}, Leaders) of
+    {true, Node} ->
+      Node;
+    {false, _} ->
+      timer:sleep(100),
+      wait_consensus()
+  end.
 
 
-start_node(N) ->
+start_node(N, true) ->
   {ok, Node} = ct_slave:start(list_to_atom("node"++integer_to_list(N))),
   wait_for_node(Node),
+  rpc:call(Node, net_adm, world, []),
   lists:foreach(fun(X) -> rpc:call(Node, code, add_path, [X]) end, ct:get_config(paths, [])),
   rpc:call(Node, application, start, [nbully]),
+  Node;
+start_node(N, false) ->
+  {ok, Node} = ct_slave:start(list_to_atom("node"++integer_to_list(N))),
+  wait_for_node(Node),
   Node.
+
 
 start_nodes(0) ->
   ok;
 start_nodes(N) ->
-  _ = start_node(N),
+  _ = start_node(N, true),
   start_nodes(N-1).
 
 stop_node(N) ->

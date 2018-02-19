@@ -22,7 +22,7 @@
 -export([start_link/0, stop/0]).
 
 %%% INIT/TERMINATE EXPORTS
--export([init/1, terminate/0]).
+-export([init/1]).
 
 %%% SYS EXPORTS
 -export([system_continue/3, system_terminate/4, system_code_change/4, write_debug/3]).
@@ -32,13 +32,18 @@
 -export([leader/0]).
 
 %%% MACROS
--define(ELECTION_MESSAGE, '$nbully_election').
--define(IM_LEADER_MESSAGE, '$nbully_im_leader').
--define(LEADER_MESSAGE, '$nbully_leader').
+-define(ADVERTISE_MSG, '$nbully_advertise').
+-define(ELECTION_MSG, '$nbully_election').
+-define(IM_LEADER_MSG, '$nbully_im_leader').
+
+-define(LEADER_MSG, '$nbully_leader').
+
 -define(RESPONSE_TIMEOUT, 100).
 
 %%% RECORDS
--record(st, {timeout = infinity, known_nodes = [], leader = undefined}).
+-record(st, {leader = undefined,
+             timeout = infinity,
+             nodes = [] :: {node(), reference(), term()}}).
 
 
 %%%-----------------------------------------------------------------------------
@@ -52,22 +57,16 @@ stop() ->
 
 
 %%%-----------------------------------------------------------------------------
-%%% INIT/TERMINATE EXPORTS
+%%% INIT EXPORTS
 %%%-----------------------------------------------------------------------------
 init(Parent) ->
-  Nodes = all_nodes(),
   register(?MODULE, self()),
   Debug = sys:debug_options([]),
   net_kernel:monitor_nodes(true),
-  St = start_election(#st{known_nodes = Nodes}, Nodes),
+  Nodes = nodes(),
+  St = advertise(Nodes, #st{}),
   ok = proc_lib:init_ack(Parent, {ok, self()}),
   loop(Parent, Debug, St).
-
-
-terminate() ->
-  net_kernel:monitor_nodes(false),
-  proc_lib:stop(self()).
-
 
 %%%-----------------------------------------------------------------------------
 %%% SYS EXPORTS
@@ -76,6 +75,7 @@ system_continue(Parent, Debug, St) ->
   loop(Parent, Debug, St).
   
 system_terminate(Reason, _, _, _) ->
+  net_kernel:monitor_nodes(false),
   exit(Reason).
   
 system_code_change(Misc, _, _, _) ->
@@ -88,11 +88,16 @@ write_debug(Dev, Event, Name) ->
 %%% EXTERNAL EXPORTS
 %%%-----------------------------------------------------------------------------
 leader() ->
-  Ref = make_ref(),
-  ?MODULE ! {?LEADER_MESSAGE, self(), Ref},
-  receive
-    {Ref, Leader} ->
-      Leader
+  case whereis(?MODULE) of
+    undefined ->
+      undefined;
+    Pid when is_pid(Pid) ->
+      Ref = make_ref(),
+      Pid ! {?LEADER_MSG, self(), Ref},
+      receive
+        {Ref, Leader} ->
+          Leader
+      end
   end.
 
 %%%-----------------------------------------------------------------------------
@@ -103,68 +108,108 @@ loop(Parent, Debug, St) ->
   receive
     {system, From, Request} ->
       sys:handle_system_msg(Request, From, Parent, ?MODULE, Debug, St);
-    {?ELECTION_MESSAGE, _Node} ->
-      loop(Parent, Debug, become_leader(St));
-    {?IM_LEADER_MESSAGE, Node} ->
-      loop(Parent, Debug, set_leader(St, Node));
-    {?LEADER_MESSAGE, From, Ref} ->
+    {?ADVERTISE_MSG, Node, Pid} ->
+      NewSt = monitor_process(St, Node, Pid),
+      loop(Parent, Debug, elect(NewSt));
+    {?ELECTION_MSG, Node, Pid} ->
+      NewSt = monitor_process(St, Node, Pid),
+      loop(Parent, Debug, become_leader(NewSt));
+    {?IM_LEADER_MSG, Node, Pid} ->
+      NewSt = monitor_process(St, Node, Pid),
+      loop(Parent, Debug, set_leader(NewSt, Node));
+    {?LEADER_MSG, From, Ref} ->
       From ! {Ref, Leader},
       loop(Parent, Debug, St);
-    {nodedown, Leader} ->
-      set_leader(St, undefined),
-      Nodes = all_nodes(),
-      loop(Parent, Debug, start_election(St#st{known_nodes = Nodes}, Nodes));
     {nodedown, _} ->
-      loop(Parent, Debug, St#st{known_nodes = all_nodes()});
-    {nodeup, _} ->
-      Nodes = all_nodes(),
-      loop(Parent, Debug, start_election(St#st{known_nodes = Nodes}, Nodes))
+      loop(Parent, Debug, St);
+    {nodeup, Node} ->
+      loop(Parent, Debug, advertise([Node], St));
+    {'DOWN', Ref, _Type, _Object, _Info} ->
+      NewSt = handle_down(Ref, St),
+      loop(Parent, Debug, NewSt)
   after
     St#st.timeout ->
       loop(Parent, Debug, become_leader(St))
   end.
 
+handle_down(Ref, St) ->
+  case lists:keytake(Ref, 3, St#st.nodes) of
+    false ->
+      St;
+    {value, {N, _P, _R}, Nodes} when N == St#st.leader ->
+      set_leader(St, undefined),
+      elect(St#st{nodes = Nodes});
+    {value, {_N, _P, _R}, Nodes} ->
+      St#st{nodes = Nodes}
+  end.
 
-all_nodes() ->
-  [node() | nodes()].
+monitor_process(St, Node, Pid) ->
+  case lists:keyfind(Pid, 2, St#st.nodes) of
+    false ->
+      Ref = erlang:monitor(process, Pid),
+      St#st{nodes = [{Node, Pid, Ref} | St#st.nodes]};
+    _ ->
+      St
+  end.
 
 
-start_election(St, Nodes) ->
-  %lists:foreach(fun send_election_message/1, higher_ids(Nodes)),
-  send_election(highest_id(Nodes)),
+%%%-----------------------------------------------------------------------------
+%%% INTERNAL ST FUNCTIONS
+%%%-----------------------------------------------------------------------------
+advertise(Nodes, St) ->
+  lists:foreach(fun send_advertise/1, Nodes),
   St#st{timeout = ?RESPONSE_TIMEOUT}.
 
+elect(St) ->
+  Node = highest_id(St#st.nodes),
+  send_election(Node),
+  St#st{timeout = ?RESPONSE_TIMEOUT}.
 
-send_election(Node) ->
-  send_message_to_node(Node, ?ELECTION_MESSAGE).
-
+become_leader(St) ->
+  case highest_id(St#st.nodes) of
+    Node when Node > node() ->
+      St;
+    _Node ->
+      NewSt = set_leader(St, node()),
+      lists:foreach(fun send_im_leader/1, lower_ids(NewSt#st.nodes)),
+      NewSt#st{timeout = infinity}
+  end.
 
 set_leader(St, Node) ->
   St#st{leader = Node, timeout = infinity}.
 
 
-become_leader(St) ->
-  set_leader(St, node()),
-  broadcast_leader(St),
-  St#st{timeout = infinity}.
+%%%-----------------------------------------------------------------------------
+%%% INTERNAL MSG FUNCTIONS
+%%%-----------------------------------------------------------------------------
+send_advertise(Node) ->
+  send_to_node(Node, ?ADVERTISE_MSG).
+
+send_election(Node) ->
+  send_to_node(Node, ?ELECTION_MSG).
+
+send_im_leader(Node) ->
+  send_to_node(Node, ?IM_LEADER_MSG).
+
+send_to_node(Node, Message) ->
+  {?MODULE, Node} ! {Message, node(), self()}.
 
 
-broadcast_leader(St) ->
-  lists:foreach(fun send_leader/1, lower_ids(St#st.known_nodes)).
-
-
-send_leader(Node) ->
-  send_message_to_node(Node, ?IM_LEADER_MESSAGE).
-
-
+%%%-----------------------------------------------------------------------------
+%%% INTERNAL UTIL FUNCTIONS
+%%%-----------------------------------------------------------------------------
 highest_id(Nodes) ->
-  lists:max(Nodes).
+  lists:foldl(fun({Node, _Pid, _Ref}, AccNode) ->
+                  if
+                    Node > AccNode -> Node;
+                    true -> AccNode
+                  end
+              end,
+              node(),
+              Nodes).
 
 
 lower_ids(Nodes) ->
-  lists:filter(fun(Node) -> Node =< node() end, Nodes).
-
-
-send_message_to_node(Node, Message) ->
-  {?MODULE, Node} ! {Message, node()}.
-
+  SelfNode = node(),
+  Lower = lists:filter(fun({Node, _Pid, _Ref}) -> Node =< SelfNode end, Nodes),
+  [L || {L, _P, _R} <- Lower].

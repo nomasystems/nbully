@@ -13,38 +13,20 @@ Authors: [Nomasystems, S.L. info@nomasystems.com]
 
 = DESCRIPTION =
 
+nbully is the Nomasystems bully algorithm implementation for leader election.
+
 
 = ARCHITECTURE =
 
-
-= DATATYPES =
-
-Types are defined in the **%APPLICATION%.hrl** header file, in order to use it
-add the following declaration:
-
-```
--include_lib("%APPLICATION%/include/%APPLICATION%.hrl").
-```
-
-This header file is declares the following datatypes:
-
-%!include: ``../include/%APPLICATION%.hrl``
+nbully application starts a supervisor that supervises a worker process.
+This process runs in every node and consensuate node leadership with its
+homologues in other nodes.
 
 
 = ENVIRONMENT =
 
 The **%APPLICATION%** application requires some configuration parameters to
 be present on startup.
-
-
-== MANDATORY PARAMETERS ==
-
-: :
-
-
-== OPTIONAL PARAMETERS ==
-
-: :
 
 
 = SEE ALSO =

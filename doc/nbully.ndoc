@@ -21,18 +21,24 @@ Authors: [Nomasystems, S.L. info@nomasystems.com]
 Start/stop functions.
 
 
-== start() -> Result ==
+== start(Type, StartArgs) -> Result ==
 
 : Types
- : Result = {ok, Pid} | {error, Reason}
+ : StartType = normal | {takeover, Node} | {failover, Node}
+ : Node = node()
+ : StartArgs = term()
+ : Result = {ok, Pid} | {ok, Pid, St} | {error, Reason}
  : Pid = pid()
- : Reason = term()
+ : St = term()
 
 
 Starts the %APPLICATION% application.
 
 
-== stop() -> ok ==
+== stop(State) -> ok ==
+
+: Types
+ : State = term()
 
 
 Stops the %APPLICATION% application.
@@ -43,10 +49,33 @@ Stops the %APPLICATION% application.
 Exported functions.
 
 
-== () ->  ==
+== leader() -> Leader ==
 
 : Types
- :  =
+ : Leader = atom()
+
+
+Returns the node considered to be leader.
+
+
+== subscribe() -> ok ==
+
+: Types
+ : Leader = atom()
+
+
+Subscribe to nbully worker process to receive leader updates.
+``{nbully_leader_updated, NewLeader}`` messages will be received on leader updates.
+
+
+== unsubscribe() -> ok ==
+
+: Types
+ : Leader = atom()
+
+
+Unsubscribes from nbully worker process to stop receiving leader updates
+
 
 
 = SEE ALSO =
