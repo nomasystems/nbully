@@ -23,8 +23,7 @@
           stop/1]).
 
 %%% API EXPORTS
-%-export([leader/0, subscribe/0, unsubscribe/0]).
--export([leader/0]).
+-export([leader/0, subscribe/0, unsubscribe/0]).
 
 %%%-----------------------------------------------------------------------------
 %%% START/STOP EXPORTS
@@ -42,3 +41,11 @@ stop(_) ->
 %%%-----------------------------------------------------------------------------
 leader() ->
   nbully_wrk:leader().
+
+
+subscribe() ->
+  nbully_wrk:subscribe().
+
+
+unsubscribe() ->
+  nbully_wrk:unsubscribe().

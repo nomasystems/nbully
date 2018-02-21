@@ -88,11 +88,14 @@ api() ->
 
 api(_Conf) ->
   start_nodes(9),
+  subscriver_srv:start_link(),
   Nodes = all_nodes(),
   Leader = lists:max(Nodes),
   timer:sleep(500),
   Leader = nbully:leader(),
   Leader = wait_consensus(),
+  Leader = subscriver_srv:leader(),
+  subscriver_srv:stop(),
   stop_nodes(9),
   ok.
 
@@ -102,6 +105,7 @@ api_neg() ->
 
 api_neg(_Conf) ->
   start_nodes(9),
+  {ok, Subscriber} = subscriver_srv:start(),
   Nodes = all_nodes(),
   Leader = lists:max(Nodes),
   rpc:call(Leader, application, stop, [nbully]),
@@ -110,6 +114,8 @@ api_neg(_Conf) ->
   NewLeader = nbully:leader(),
   true = NewLeader /= Leader,
   NewLeader = wait_consensus(),
+  NewLeader = subscriver_srv:leader(),
+  erlang:exit(Subscriber, kill),
   stop_nodes(9),
   ok.
 

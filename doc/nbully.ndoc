@@ -60,18 +60,12 @@ Returns the node considered to be leader.
 
 == subscribe() -> ok ==
 
-: Types
- : Leader = atom()
-
 
 Subscribe to nbully worker process to receive leader updates.
 ``{nbully_leader_updated, NewLeader}`` messages will be received on leader updates.
 
 
 == unsubscribe() -> ok ==
-
-: Types
- : Leader = atom()
 
 
 Unsubscribes from nbully worker process to stop receiving leader updates

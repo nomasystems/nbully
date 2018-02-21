@@ -29,7 +29,7 @@
 
 
 %%% EXTERNAL EXPORTS
--export([leader/0]).
+-export([leader/0, subscribe/0, unsubscribe/0]).
 
 %%% MACROS
 -define(ADVERTISE_MSG, '$nbully_advertise').
@@ -37,13 +37,19 @@
 -define(IM_LEADER_MSG, '$nbully_im_leader').
 
 -define(LEADER_MSG, '$nbully_leader').
+-define(SUBSCRIBE_MSG, '$nbully_subscribe').
+-define(UNSUBSCRIBE_MSG, '$nbully_unsubscribe').
+
+-define(UPDATE_MSG(Node), {nbully_leader_updated, Node}).
 
 -define(RESPONSE_TIMEOUT, 100).
 
 %%% RECORDS
 -record(st, {leader = undefined,
              timeout = infinity,
-             nodes = [] :: {node(), reference(), term()}}).
+             nodes = [] :: {node(), reference(), term()},
+             subscribers = [] :: {pid(), reference()}
+            }).
 
 
 %%%-----------------------------------------------------------------------------
@@ -88,17 +94,30 @@ write_debug(Dev, Event, Name) ->
 %%% EXTERNAL EXPORTS
 %%%-----------------------------------------------------------------------------
 leader() ->
+  call(?LEADER_MSG).
+
+
+subscribe() ->
+  call(?SUBSCRIBE_MSG).
+
+
+unsubscribe() ->
+  call(?UNSUBSCRIBE_MSG).
+
+
+call(Msg) ->
   case whereis(?MODULE) of
     undefined ->
       undefined;
     Pid when is_pid(Pid) ->
       Ref = make_ref(),
-      Pid ! {?LEADER_MSG, self(), Ref},
+      Pid ! {Msg, self(), Ref},
       receive
-        {Ref, Leader} ->
-          Leader
+        {Ref, Reply} ->
+          Reply
       end
   end.
+
 
 %%%-----------------------------------------------------------------------------
 %%% INTERNAL FUNCTIONS
@@ -109,17 +128,25 @@ loop(Parent, Debug, St) ->
     {system, From, Request} ->
       sys:handle_system_msg(Request, From, Parent, ?MODULE, Debug, St);
     {?ADVERTISE_MSG, Node, Pid} ->
-      NewSt = monitor_process(St, Node, Pid),
+      NewSt = monitor_bully_process(St, Node, Pid),
       loop(Parent, Debug, elect(NewSt));
     {?ELECTION_MSG, Node, Pid} ->
-      NewSt = monitor_process(St, Node, Pid),
+      NewSt = monitor_bully_process(St, Node, Pid),
       loop(Parent, Debug, become_leader(NewSt));
     {?IM_LEADER_MSG, Node, Pid} ->
-      NewSt = monitor_process(St, Node, Pid),
+      NewSt = monitor_bully_process(St, Node, Pid),
       loop(Parent, Debug, set_leader(NewSt, Node));
     {?LEADER_MSG, From, Ref} ->
       From ! {Ref, Leader},
       loop(Parent, Debug, St);
+    {?SUBSCRIBE_MSG, From, Ref} ->
+      NewSt = subscribe(From, St),
+      From ! {Ref, ok},
+      loop(Parent, Debug, NewSt);
+    {?UNSUBSCRIBE_MSG, From, Ref} ->
+      NewSt = unsubscribe(From, St),
+      From ! {Ref, ok},
+      loop(Parent, Debug, NewSt);
     {nodedown, _} ->
       loop(Parent, Debug, St);
     {nodeup, Node} ->
@@ -132,10 +159,11 @@ loop(Parent, Debug, St) ->
       loop(Parent, Debug, become_leader(St))
   end.
 
+
 handle_down(Ref, St) ->
   case lists:keytake(Ref, 3, St#st.nodes) of
     false ->
-      St;
+      handle_subscriber_down(Ref, St);
     {value, {N, _P, _R}, Nodes} when N == St#st.leader ->
       set_leader(St, undefined),
       elect(St#st{nodes = Nodes});
@@ -143,7 +171,17 @@ handle_down(Ref, St) ->
       St#st{nodes = Nodes}
   end.
 
-monitor_process(St, Node, Pid) ->
+handle_subscriber_down(Ref, St) ->
+  case lists:keytake(Ref, 2, St#st.subscribers) of
+    false ->
+      St;
+    {value, {_P, _R}, Subscribers} ->
+      St#st{subscribers = Subscribers}
+  end.
+
+
+
+monitor_bully_process(St, Node, Pid) ->
   case lists:keyfind(Pid, 2, St#st.nodes) of
     false ->
       Ref = erlang:monitor(process, Pid),
@@ -176,6 +214,7 @@ become_leader(St) ->
   end.
 
 set_leader(St, Node) ->
+  lists:foreach(fun({Pid, _R}) -> Pid ! ?UPDATE_MSG(Node) end, St#st.subscribers),
   St#st{leader = Node, timeout = infinity}.
 
 
@@ -193,6 +232,29 @@ send_im_leader(Node) ->
 
 send_to_node(Node, Message) ->
   {?MODULE, Node} ! {Message, node(), self()}.
+
+%%%-----------------------------------------------------------------------------
+%%% INTERNAL SUBSCRIBER FUNCTIONS
+%%%-----------------------------------------------------------------------------
+subscribe(From, St) ->
+  case lists:keyfind(From, 1, St#st.subscribers) of
+    false ->
+      Ref = erlang:monitor(process, From),
+      St#st{subscribers = [{From, Ref} | St#st.subscribers]};
+    {From, _R} ->
+      St
+  end.
+
+
+unsubscribe(From, St) ->
+  case lists:keytake(From, 1, St#st.subscribers) of
+    false ->
+      St;
+    {value, {From, Ref}, Subscribers} ->
+      true = erlang:demonitor(Ref),
+      St#st{subscribers = Subscribers}
+  end.
+
 
 
 %%%-----------------------------------------------------------------------------
