@@ -2,7 +2,7 @@
 {application, nbully,
  [{description, "Shortcut implementation of bully leader election algorithm"},
   {vsn, "1.0.0"},
-  {registered, []},
+  {registered, [nbully]},
   {applications, [kernel, stdlib]},
   {mod, {nbully, []}},
   {env, []}]}.
