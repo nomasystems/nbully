@@ -14,7 +14,7 @@
 %%% MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR
 %%% NON-INFRINGEMENT. Please see the License for the specific language
 %%% governing rights and limitations under the License.
--module(subscriver_srv).
+-module(subscriber_srv).
 
 -behaviour(gen_server).
 
