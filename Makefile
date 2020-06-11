@@ -19,7 +19,7 @@ PDFS = $(DOCS:.ndoc=.pdf)
 ### DEPENDENCY SEARCH PATHS
 VPATH = src:include:ebin:doc
 
-.PHONY: all clean doc
+.PHONY: all clean doc test
 .SUFFIXES: .erl .hrl .beam .app.src .app .rel .ndoc
 
 ###-----------------------------------------------------------------------------
@@ -37,24 +37,11 @@ pdf: $(PDFS)
 
 doc: man html pdf
 
-compile: ebin
+compile:
 	@$(REBAR) compile
-
-vo: $(VO_HRLS)
-	@for HRL in $^; do \
-		($(VOGENERATE) $$HRL); \
-	done
-
-ebin:
-	@$(MKDIR) ebin
 
 clean:
 	@$(REBAR) clean
-
-cleanvo: $(VO_HRLS)
-	@for HRL in $^; do \
-		($(VOCLEAN) $$HRL); \
-	done
 
 realclean: clean cleanvo
 	@$(RM) -Rf doc/html
@@ -62,10 +49,10 @@ realclean: clean cleanvo
 	@$(RM) -Rf doc/pdf
 
 test: compile
-	@$(REBAR) ct
+	@$(REBAR) ct --sname nbully --spec test/conf/test.spec --cover --readable true
 
 dialyze:
-	$(DIALYZER) $(DFLAGS) ./src
+	$(REBAR) dialyzer
 
 beams:
 	@$(ERL) -make

@@ -18,6 +18,7 @@
 
 %%% EXTERNAL EXPORTS
 -compile(export_all).
+-compile(nowarn_export_all).
 
 %%% MACROS
 -define(MATCH_SPEC, [{'_', [], [{message, {return_trace}}]}]).
@@ -194,7 +195,9 @@ wait_consensus() ->
 
 
 start_node(N, true) ->
-  {ok, Node} = ct_slave:start(list_to_atom("node"++integer_to_list(N))),
+  ErlFlags =  "-pa ../../lib/*/ebin",
+  {ok, Node} = ct_slave:start(list_to_atom("node"++integer_to_list(N)),
+                              [{monitor_master, true}, {erl_flags, ErlFlags}]),
   wait_for_node(Node),
   rpc:call(Node, net_adm, world, []),
   lists:foreach(fun(X) -> rpc:call(Node, code, add_path, [X]) end, ct:get_config(paths, [])),

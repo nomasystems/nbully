@@ -9,8 +9,6 @@ space := $(empty) $(empty)
 ### Erlang compiler
 ERL = erl
 ERLC = erlc
-DIALYZER = dialyzer
-RUN_TEST = ct_run
 
 ### Flags
 ifeq ($(DEBUG_INFO), true)
@@ -30,7 +28,5 @@ MKDIR = mkdir
 MV = mv -vf
 RM = rm -vf
 SED = sed
-VOGENERATE = otpVOGenerate
-VOCLEAN = otpVOClean
 LS = otpLs
-REBAR = rebar
+REBAR = rebar3
