@@ -24,7 +24,7 @@
 -export([start/0, start_link/0, stop/0]).
 
 %%% EXTERNAL EXPORTS
--export([leader/0, unsubscribe/0]).
+-export([leader/0, repeated_lead_msgs/0, unsubscribe/0]).
 
 %%% INIT/TERMINATE EXPORTS
 -export([init/1, terminate/2]).
@@ -38,7 +38,8 @@
 %%% MACROS
 
 %%% RECORDS
--record(st, {leader = undefined :: atom()}).
+-record(st, {leader = undefined :: atom(),
+             repeated_lead_msgs = 0 :: non_neg_integer()}).
 
 %%%-----------------------------------------------------------------------------
 %%% START/STOP EXPORTS
@@ -58,6 +59,9 @@ stop() ->
 leader() ->
   gen_server:call(?MODULE, leader).
 
+repeated_lead_msgs() ->
+  gen_server:call(?MODULE, repeated_lead_msgs).
+
 unsubscribe() ->
   gen_server:call(?MODULE, unsusbscribe).
 
@@ -66,7 +70,7 @@ unsubscribe() ->
 %%%-----------------------------------------------------------------------------
 init([]) ->
   nbully:subscribe(),
-  {ok, #st{}}.
+  {ok, #st{leader = nbully:leader()}}.
 
 
 terminate(_Reason, _St) ->
@@ -78,6 +82,8 @@ terminate(_Reason, _St) ->
 %%%-----------------------------------------------------------------------------
 handle_call(leader, _From, St) ->
   {reply, St#st.leader, St};
+handle_call(repeated_lead_msgs, _From, St) ->
+  {reply, St#st.repeated_lead_msgs, St};
 handle_call(unsubscribe, _From, St) ->
   nbully:unsubscribe(),
   {reply, St, St};
@@ -88,7 +94,12 @@ handle_cast(Req, St) ->
   erlang:error(function_clause, [Req, St]).
 
 handle_info({nbully_leader_updated, Node}, St) ->
-  {noreply, St#st{leader = Node}}.
+  case St#st.leader == Node of
+    true ->
+      {noreply, St#st{repeated_lead_msgs = St#st.repeated_lead_msgs + 1}};
+    false ->
+      {noreply, St#st{leader = Node, repeated_lead_msgs = 0}}
+  end.
 
 %%%-----------------------------------------------------------------------------
 %%% CODE UPDATE EXPORTS

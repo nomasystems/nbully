@@ -96,6 +96,7 @@ api(_Conf) ->
   Leader = nbully:leader(),
   Leader = wait_consensus(),
   Leader = subscriber_srv:leader(),
+  0 = subscriber_srv:repeated_lead_msgs(),
   subscriber_srv:stop(),
   stop_nodes(9),
   ok.
@@ -116,6 +117,7 @@ api_neg(_Conf) ->
   true = NewLeader /= Leader,
   NewLeader = wait_consensus(),
   NewLeader = subscriber_srv:leader(),
+  0 = subscriber_srv:repeated_lead_msgs(),
   erlang:exit(Subscriber, kill),
   stop_nodes(9),
   ok.
@@ -125,6 +127,7 @@ fault_tolerance() ->
   [{userdata, [{doc, "Tests the public API with invalid input data."}]}].
 
 fault_tolerance(_Conf) ->
+  subscriber_srv:start_link(),
   start_nodes(9),
   timer:sleep(500),
   Leader = lists:max(all_nodes()),
@@ -148,6 +151,9 @@ fault_tolerance(_Conf) ->
   Leader = wait_consensus(),
  
   stop_nodes(9),
+
+  0 = subscriber_srv:repeated_lead_msgs(),
+  subscriber_srv:stop(),
   ok.
 
 

@@ -213,6 +213,8 @@ become_leader(St) ->
       NewSt#st{timeout = infinity}
   end.
 
+set_leader(#st{leader = Node} = St, Node) ->
+  St;
 set_leader(St, Node) ->
   lists:foreach(fun({Pid, _R}) -> Pid ! ?UPDATE_MSG(Node) end, St#st.subscribers),
   St#st{leader = Node, timeout = infinity}.
@@ -273,5 +275,5 @@ highest_id(Nodes) ->
 
 lower_ids(Nodes) ->
   SelfNode = node(),
-  Lower = lists:filter(fun({Node, _Pid, _Ref}) -> Node =< SelfNode end, Nodes),
+  Lower = lists:filter(fun({Node, _Pid, _Ref}) -> Node < SelfNode end, Nodes),
   [L || {L, _P, _R} <- Lower].
