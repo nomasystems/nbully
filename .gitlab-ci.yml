@@ -1,0 +1,24 @@
+image: erlang:21
+
+build:
+  stage: build
+  tags:
+    - docker
+  script:
+    - make
+
+test:
+  stage: test
+  tags:
+    - docker
+  script:
+    - make test
+  after_script:
+    - rebar3 cover -v
+  artifacts:
+    reports:
+      junit: _build/test/logs/**/report.xml
+    paths:
+      - _build/test/logs/**/report.xml
+      - _build/test/cover/index.html
+
