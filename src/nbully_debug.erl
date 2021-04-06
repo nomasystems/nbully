@@ -22,7 +22,6 @@
 -export([start_n/1, start_n/2]).
 -export([start_link_n/1, start_link_n/2]).
 
-
 %%% MACROS
 
 %%% RECORDS
@@ -31,31 +30,32 @@
 %%% EXTERNAL EXPORTS
 %%%-----------------------------------------------------------------------------
 start_n(Count) ->
-  start_n(1, Count).
+    start_n(1, Count).
 
 start_n(Start, End) ->
-  start_n_impl(Start, End, start).
+    start_n_impl(Start, End, start).
 
 start_link_n(Count) ->
-  start_link_n(1, Count).
+    start_link_n(1, Count).
 
 start_link_n(Start, End) ->
-  start_n_impl(Start, End, start_link).
+    start_n_impl(Start, End, start_link).
 
 %%%-----------------------------------------------------------------------------
 %%% INTERNAL FUNCTIONS
 %%%-----------------------------------------------------------------------------
 start_n_impl(Start, End, StartFun) ->
-  {ok, Host} = inet:gethostname(),
-  ok = lists:foreach(
-         fun (I) ->
-             case slave:StartFun(Host, integer_to_list(I)) of
-               {ok, _} ->
-                 ok;
-               {error, {already_running, _}} ->
-                 ok
-             end
-         end,
-         lists:seq(Start, End)),
-  _ = rpc:eval_everywhere(code, add_pathsa, [code:get_path()]),
-  ok.
+    {ok, Host} = inet:gethostname(),
+    ok = lists:foreach(
+        fun(I) ->
+            case slave:StartFun(Host, integer_to_list(I)) of
+                {ok, _} ->
+                    ok;
+                {error, {already_running, _}} ->
+                    ok
+            end
+        end,
+        lists:seq(Start, End)
+    ),
+    _ = rpc:eval_everywhere(code, add_pathsa, [code:get_path()]),
+    ok.

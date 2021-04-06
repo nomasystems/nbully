@@ -31,25 +31,23 @@
 %%% START/STOP EXPORTS
 %%%-----------------------------------------------------------------------------
 start_link() ->
-  supervisor:start_link({local, ?MODULE}, ?MODULE, []).
-
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 stop() ->
-  ok = nbully_wrk:stop(),
-  ok = supervisor:delete_child(?MODULE, nbully_wkr).
-
+    ok = nbully_wrk:stop(),
+    ok = supervisor:delete_child(?MODULE, nbully_wkr).
 
 %%%-----------------------------------------------------------------------------
 %%% INTERNAL EXPORTS
 %%%-----------------------------------------------------------------------------
 init([]) ->
-  {ok, {{one_for_one, 1, 60}, [child(nbully_wrk, nbully_wrk, start_link, [], transient)]}}.
+    {ok, {{one_for_one, 1, 60}, [child(nbully_wrk, nbully_wrk, start_link, [], transient)]}}.
 
 %%%-----------------------------------------------------------------------------
 %%% INTERNAL FUNCTIONS
 %%%-----------------------------------------------------------------------------
 child(Id, Mod, Fun, Args, Restart, Type) ->
-  {Id, {Mod, Fun, Args}, Restart, 5000, Type, [Mod]}.
- 
+    {Id, {Mod, Fun, Args}, Restart, 5000, Type, [Mod]}.
+
 child(Id, Mod, Fun, Args, Restart) ->
-  child(Id, Mod, Fun, Args, Restart, worker).
+    child(Id, Mod, Fun, Args, Restart, worker).
