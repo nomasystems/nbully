@@ -17,10 +17,11 @@
 -module(nbully).
 -behaviour(application).
 
-
 %%% START/STOP EXPORTS
--export ([start/2,
-          stop/1]).
+-export([
+    start/2,
+    stop/1
+]).
 
 %%% API EXPORTS
 -export([leader/0, subscribe/0, unsubscribe/0]).
@@ -29,23 +30,19 @@
 %%% START/STOP EXPORTS
 %%%-----------------------------------------------------------------------------
 start(_, _) ->
-  nbully_sup:start_link().
-
+    nbully_sup:start_link().
 
 stop(_) ->
-  nbully_sup:stop().
-
+    nbully_sup:stop().
 
 %%%-----------------------------------------------------------------------------
 %%% API EXPORTS
 %%%-----------------------------------------------------------------------------
 leader() ->
-  nbully_wrk:leader().
-
+    nbully_wrk:leader().
 
 subscribe() ->
-  nbully_wrk:subscribe().
-
+    nbully_wrk:subscribe().
 
 unsubscribe() ->
-  nbully_wrk:unsubscribe().
+    nbully_wrk:unsubscribe().
