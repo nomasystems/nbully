@@ -17,16 +17,10 @@
 -module('nbully_SUITE').
 
 %%% EXTERNAL EXPORTS
--compile(export_all).
--compile(nowarn_export_all).
+-compile([export_all, nowarn_export_all]).
 
 %%% MACROS
--define(MATCH_SPEC, [{'_', [], [{message, {return_trace}}]}]).
 -define(MAX_TIME, 10000).
-% Don't ask me why.
--define(MAX_TIMETRAP, 429496729).
-% Tests run in log/ct_run.*
--define(STUBS_DIR, "../../stubs").
 
 %%%-----------------------------------------------------------------------------
 %%% EXTERNAL EXPORTS
@@ -34,50 +28,31 @@
 all() ->
     [api, api_neg, fault_tolerance, performance].
 
-sequences() ->
-    [].
-
-suite() ->
-    [{timetrap, ?MAX_TIMETRAP}].
-
 %%%-----------------------------------------------------------------------------
 %%% INIT SUITE EXPORTS
 %%%-----------------------------------------------------------------------------
 init_per_suite(Conf) ->
-    lists:foreach(fun(X) -> code:add_path(X) end, ct:get_config(paths, [])),
-    dbg:tracer(),
-    dbg:p(all, [c, sos, sol]),
-    Apps = ct:get_config(apps, []),
-    Env = ct:get_config(env, []),
-    [ok = application:load(App) || App <- Apps],
-    [ok = application:set_env(App, K, V) || {App, KeyVal} <- Env, {K, V} <- KeyVal],
-    [ok = application:start(App) || App <- Apps],
-    Conf.
+    nct_util:setup_suite(Conf).
 
 %%%-----------------------------------------------------------------------------
 %%% END SUITE EXPORTS
 %%%-----------------------------------------------------------------------------
-end_per_suite(_Conf) ->
-    Apps = ct:get_config(apps, []),
-    [ok = application:stop(App) || App <- Apps],
-    [ok = application:unload(App) || App <- Apps],
-    ok.
+end_per_suite(Conf) ->
+    nct_util:teardown_suite(Conf).
 
 %%%-----------------------------------------------------------------------------
 %%% INIT CASE EXPORTS
 %%%-----------------------------------------------------------------------------
 init_per_testcase(Case, Conf) ->
     ct:print("Starting test case ~p", [Case]),
-    init_stubs(Case),
-    init_traces(Case),
+    nct_util:init_traces(Case),
     Conf.
 
 %%%-----------------------------------------------------------------------------
 %%% END CASE EXPORTS
 %%%-----------------------------------------------------------------------------
 end_per_testcase(Case, Conf) ->
-    end_traces(Case),
-    end_stubs(Case),
+    nct_util:end_traces(Case),
     ct:print("Test case ~p completed", [Case]),
     Conf.
 
@@ -238,72 +213,3 @@ wait_for_node(Node) ->
             timer:sleep(100),
             wait_for_node(Node)
     end.
-
-%%%-----------------------------------------------------------------------------
-%%% TRACING UTIL FUNCTIONS
-%%%-----------------------------------------------------------------------------
-add_trace(TpFun, {Mod, Fun, Spec}) ->
-    dbg:TpFun(Mod, Fun, Spec);
-add_trace(TpFun, {Mod, Fun}) ->
-    dbg:TpFun(Mod, Fun, ?MATCH_SPEC);
-add_trace(TpFun, Mod) ->
-    dbg:TpFun(Mod, ?MATCH_SPEC).
-
-del_trace(CtpFun, {Mod, Fun, _Spec}) ->
-    dbg:CtpFun(Mod, Fun);
-del_trace(CtpFun, {Mod, Fun}) ->
-    dbg:CtpFun(Mod, Fun);
-del_trace(CtpFun, Mod) ->
-    dbg:CtpFun(Mod).
-
-end_traces(Case) ->
-    TpCases = ct:get_config(tp_cases, []),
-    Tps = proplists:get_value(Case, TpCases, []),
-    lists:foreach(fun(Tp) -> del_trace(ctp, Tp) end, Tps),
-    TplCases = ct:get_config(tpl_cases, []),
-    Tpls = proplists:get_value(Case, TplCases, []),
-    lists:foreach(fun(Tpl) -> del_trace(ctpl, Tpl) end, Tpls).
-
-init_traces(Case) ->
-    TpCases = ct:get_config(tp_cases, []),
-    Tps = proplists:get_value(Case, TpCases, []),
-    lists:foreach(fun(Tp) -> add_trace(tp, Tp) end, Tps),
-    TplCases = ct:get_config(tpl_cases, []),
-    Tpls = proplists:get_value(Case, TplCases, []),
-    lists:foreach(fun(Tpl) -> add_trace(tpl, Tpl) end, Tpls).
-
-%%%-----------------------------------------------------------------------------
-%%% STUB UTIL FUNCTIONS
-%%%-----------------------------------------------------------------------------
-end_stubs(Case) ->
-    NegCases = ct:get_config(neg_cases, []),
-    Stubs = proplists:get_value(Case, NegCases, []),
-    lists:foreach(fun purge_stub/1, Stubs).
-
-init_stubs(Case) ->
-    NegCases = ct:get_config(neg_cases, []),
-    Stubs = proplists:get_value(Case, NegCases, []),
-    lists:foreach(fun(Stub) -> load_stub(Stub, true) end, Stubs).
-
-load_stub(Stub, NegTest) ->
-    Opts =
-        if
-            NegTest -> [binary, {d, neg_case}];
-            true -> [binary]
-        end,
-    Erl = atom_to_list(Stub) ++ ".erl",
-    ct:print("Compiling ~s with options ~p", [Erl, Opts]),
-    {ok, Mod, Bin} = compile:file(filename:join(?STUBS_DIR, Erl), Opts),
-    ct:print("Purge default ~p stub", [Mod]),
-    code:purge(Mod),
-    code:delete(Mod),
-    ct:print("Loading new ~p stub", [Mod]),
-    Beam = atom_to_list(Mod) ++ code:objfile_extension(),
-    {module, Mod} = code:load_binary(Mod, Beam, Bin).
-
-purge_stub(Stub) ->
-    ct:print("Purge ~p stub", [Stub]),
-    code:purge(Stub),
-    code:delete(Stub),
-    ct:print("Reloading default ~p stub", [Stub]),
-    {module, Stub} = code:load_file(Stub).
