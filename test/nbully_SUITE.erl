@@ -19,14 +19,14 @@
 %%% EXTERNAL EXPORTS
 -compile([export_all, nowarn_export_all]).
 
-%%% MACROS
--define(MAX_TIME, 10000).
+%%% INCLUDES
+-include_lib("common_test/include/ct.hrl").
 
 %%%-----------------------------------------------------------------------------
 %%% EXTERNAL EXPORTS
 %%%-----------------------------------------------------------------------------
 all() ->
-    [api, api_neg, fault_tolerance, performance].
+    [api, api_neg, fault_tolerance].
 
 %%%-----------------------------------------------------------------------------
 %%% INIT SUITE EXPORTS
@@ -63,27 +63,25 @@ api() ->
     [{userdata, [{doc, "Tests the public API."}]}].
 
 api(_Conf) ->
-    start_nodes(9),
+    Peers = start_peers(9),
     subscriber_srv:start_link(),
-    Nodes = all_nodes(),
-    Leader = lists:max(Nodes),
+    {Leader, _} = lists:max(Peers),
     timer:sleep(500),
     Leader = nbully:leader(),
     Leader = wait_consensus(),
     Leader = subscriber_srv:leader(),
     0 = subscriber_srv:repeated_lead_msgs(),
     subscriber_srv:stop(),
-    stop_nodes(9),
+    stop_peers(Peers),
     ok.
 
 api_neg() ->
     [{userdata, [{doc, "Tests the public API with invalid input data."}]}].
 
 api_neg(_Conf) ->
-    start_nodes(9),
+    Peers = start_peers(9),
     {ok, Subscriber} = subscriber_srv:start(),
-    Nodes = all_nodes(),
-    Leader = lists:max(Nodes),
+    {Leader, _} = lists:max(Peers),
     rpc:call(Leader, application, stop, [nbully]),
 
     timer:sleep(500),
@@ -93,7 +91,7 @@ api_neg(_Conf) ->
     NewLeader = subscriber_srv:leader(),
     0 = subscriber_srv:repeated_lead_msgs(),
     erlang:exit(Subscriber, kill),
-    stop_nodes(9),
+    stop_peers(Peers),
     ok.
 
 fault_tolerance() ->
@@ -101,48 +99,41 @@ fault_tolerance() ->
 
 fault_tolerance(_Conf) ->
     subscriber_srv:start_link(),
-    start_nodes(9),
+    Peers = start_peers(9),
     timer:sleep(500),
-    Leader = lists:max(all_nodes()),
+    MaxPeer = {Leader, _} = lists:max(Peers),
     Leader = wait_consensus(),
 
-    stop_node(9),
+    Peers2 = stop_peer(MaxPeer, Peers),
+    NewLeader = lists:max(all_nodes()),
+    NewLeader = wait_consensus(),
+    true = NewLeader /= Leader,
+
+    Peers3 = stop_peer(lists:min(Peers2), Peers2),
     NewLeader = lists:max(all_nodes()),
     NewLeader = wait_consensus(),
 
-    stop_node(6),
-    NewLeader = lists:max(all_nodes()),
-    NewLeader = wait_consensus(),
-
-    stop_node(7),
-    stop_node(8),
+    Peers4 = stop_peer(lists:max(Peers3), Peers3),
     NewLeader2 = lists:max(all_nodes()),
     NewLeader2 = wait_consensus(),
+    true = NewLeader2 /= NewLeader,
 
-    start_node(9, true),
-    Leader = lists:max(all_nodes()),
-    Leader = wait_consensus(),
+    CreatePeersUntilNewLeader = fun Create(CurrentPeers) ->
+        [Peer] = start_peers(1),
+        case Peer > lists:max(CurrentPeers) of
+            true -> [Peer | CurrentPeers];
+            false -> Create([Peer | CurrentPeers])
+        end
+    end,
+    NewPeers = CreatePeersUntilNewLeader(Peers4),
+    NewLeader3 = lists:max(all_nodes()),
+    NewLeader3 = wait_consensus(),
+    true = NewLeader3 /= NewLeader2,
 
-    stop_nodes(9),
+    stop_peers(NewPeers),
 
     0 = subscriber_srv:repeated_lead_msgs(),
     subscriber_srv:stop(),
-    ok.
-
-performance() ->
-    [{userdata, [{doc, "Test performace restrictions."}]}].
-
-performance(Conf) ->
-    MaxTime = ct:get_config(max_time, ?MAX_TIME),
-    {T, _} = timer:tc(?MODULE, performance_test, [Conf]),
-    if
-        trunc(T / 1000) > MaxTime ->
-            exit(too_slow);
-        true ->
-            ok
-    end.
-
-performance_test(_Conf) ->
     ok.
 
 %%%-----------------------------------------------------------------------------
@@ -152,12 +143,12 @@ all_nodes() ->
     nodes().
 
 wait_consensus() ->
-    Nodes = all_nodes(),
-    Leaders = [rpc:call(Node, nbully, leader, []) || Node <- Nodes],
-    ct:print("Check consensus~nNodes: ~p~nLeaders: ~p~n~n", [Nodes, Leaders]),
+    {Leaders, _} = rpc:multicall(nbully, leader, []),
     Check = fun
-        (X, {false, _Node}) ->
-            {false, X};
+        (_X, {false, _Node}) ->
+            {false, undefined};
+        (undefined, {true, X}) ->
+            {true, X};
         (X, {true, undefined}) ->
             {true, X};
         (X, {true, Node}) ->
@@ -171,39 +162,29 @@ wait_consensus() ->
             wait_consensus()
     end.
 
-start_node(N, true) ->
-    ErlFlags = "-pa ../../lib/*/ebin",
-    {ok, Node} = ct_slave:start(
-        list_to_atom("node" ++ integer_to_list(N)),
-        [{monitor_master, true}, {erl_flags, ErlFlags}]
+start_peers(N) ->
+    Seq = lists:seq(1, N),
+    lists:foreach(
+        fun(_) -> ?CT_PEER(#{wait_boot => {self(), tag}, args => ["-pa" | code:get_path()]}) end,
+        Seq
     ),
-    wait_for_node(Node),
-    rpc:call(Node, net_adm, world, []),
-    lists:foreach(fun(X) -> rpc:call(Node, code, add_path, [X]) end, ct:get_config(paths, [])),
-    rpc:call(Node, application, start, [nbully]),
-    Node;
-start_node(N, false) ->
-    {ok, Node} = ct_slave:start(list_to_atom("node" ++ integer_to_list(N))),
-    wait_for_node(Node),
-    Node.
+    Peers = lists:map(
+        fun(_) ->
+            receive
+                {tag, {started, Node, Pid}} -> {Node, Pid}
+            end
+        end,
+        Seq
+    ),
+    rpc:multicall(nodes(), application, start, [nbully]),
+    Peers.
 
-start_nodes(0) ->
-    ok;
-start_nodes(N) ->
-    _ = start_node(N, true),
-    start_nodes(N - 1).
+stop_peer(Peer = {_Node, Pid}, Peers) ->
+    peer:stop(Pid),
+    lists:delete(Peer, Peers).
 
-stop_node(N) ->
-    {ok, Host} = inet:gethostname(),
-    Node = list_to_atom("node" ++ integer_to_list(N) ++ "@" ++ Host),
-    rpc:call(Node, application, stop, [nbully]),
-    ct_slave:stop(list_to_atom("node" ++ integer_to_list(N))).
-
-stop_nodes(0) ->
-    ok;
-stop_nodes(N) ->
-    _ = stop_node(N),
-    stop_nodes(N - 1).
+stop_peers(Peers) ->
+    lists:foreach(fun(Peer) -> stop_peer(Peer, Peers) end, Peers).
 
 wait_for_node(Node) ->
     case lists:member(Node, nodes()) of
