@@ -7,6 +7,7 @@ on:
     branches: [main]
 
 env:
+  OTP-VERSION: 26.2.1
   REBAR3-VERSION: 3.22.1
 
 jobs:
@@ -14,8 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        otp: ['25.3.2']
-        otp: ['26.2.1']
+        otp: ['25.3.2', '26.2.1']
     steps:
       - uses: actions/checkout@v3
 
