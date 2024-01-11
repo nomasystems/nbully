@@ -20,7 +20,7 @@
 %%% EXTERNAL EXPORTS
 %%%-----------------------------------------------------------------------------
 all() ->
-    [sys_calls].
+    [sys_calls, undefined_if_not_started].
 
 %%%-----------------------------------------------------------------------------
 %%% TEST CASES
@@ -35,3 +35,9 @@ sys_calls(_Conf) ->
     ok = sys:resume(Pid),
     unlink(Pid),
     ok = nbully_wrk:stop().
+
+undefined_if_not_started() ->
+    [{userdata, [{doc, "Tests not crashing if called with a non-started worker."}]}].
+
+undefined_if_not_started(_Conf) ->
+    undefined = nbully_wrk:leader().

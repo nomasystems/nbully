@@ -79,7 +79,7 @@ api_neg(_Conf) ->
     Peers = start_peers(9),
     {ok, Subscriber} = subscriber_srv:start(),
     {Leader, _} = lists:max(Peers),
-    rpc:call(Leader, application, stop, [nbully]),
+    ok = rpc:call(Leader, application, stop, [nbully]),
 
     timer:sleep(500),
     NewLeader = nbully:leader(),
