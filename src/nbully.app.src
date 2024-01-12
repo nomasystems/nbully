@@ -1,7 +1,7 @@
 %%% -*- mode:erlang -*-
 {application, nbully, [
     {description, "Shortcut implementation of bully leader election algorithm"},
-    {vsn, "1.0.0"},
+    {vsn, "1.0.1"},
     {registered, [nbully_sup, nbully_wrk]},
     {applications, [kernel, stdlib]},
     {mod, {nbully, []}},

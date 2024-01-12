@@ -11,38 +11,33 @@
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 %% See the License for the specific language governing permissions and
 %% limitations under the License
--module(nbully).
--behaviour(application).
+-module(nbully_wrk_SUITE).
 
-%%% APPLICATION EXPORTS
--export([
-    start/2,
-    stop/1
-]).
-
-%%% API EXPORTS
--export([leader/0, subscribe/0, unsubscribe/0]).
+%%% EXTERNAL EXPORTS
+-compile([export_all, nowarn_export_all]).
 
 %%%-----------------------------------------------------------------------------
-%%% APPLICATION EXPORTS
+%%% EXTERNAL EXPORTS
 %%%-----------------------------------------------------------------------------
-start(_, _) ->
-    nbully_sup:start_link().
-
-stop(_) ->
-    nbully_sup:stop().
+all() ->
+    [sys_calls, undefined_if_not_started].
 
 %%%-----------------------------------------------------------------------------
-%%% API EXPORTS
+%%% TEST CASES
 %%%-----------------------------------------------------------------------------
--spec leader() -> node().
-leader() ->
-    nbully_wrk:leader().
+sys_calls() ->
+    [{userdata, [{doc, "Tests the sys API."}]}].
 
--spec subscribe() -> ok.
-subscribe() ->
-    nbully_wrk:subscribe().
+sys_calls(_Conf) ->
+    {ok, Pid} = nbully_wrk:start_link(),
+    ok = sys:suspend(Pid),
+    ok = sys:change_code(Pid, nbully_wrk, undefined, undefined),
+    ok = sys:resume(Pid),
+    unlink(Pid),
+    ok = nbully_wrk:stop().
 
--spec unsubscribe() -> ok.
-unsubscribe() ->
-    nbully_wrk:unsubscribe().
+undefined_if_not_started() ->
+    [{userdata, [{doc, "Tests not crashing if called with a non-started worker."}]}].
+
+undefined_if_not_started(_Conf) ->
+    undefined = nbully_wrk:leader().

@@ -1,22 +1,17 @@
-%%% Copyright (c) 2018 [Nomasystems, S.L. http://www.nomasystems.com]
-%%%
-%%% This file contains Original Code and/or Modifications of Original Code as
-%%% defined in and that are subject to the Nomasystems Public License version
-%%% 1.0 (the 'License'). You may not use this file except in compliance with
-%%% the License. BY USING THIS FILE YOU AGREE TO ALL TERMS AND CONDITIONS OF
-%%% THE LICENSE. A copy of the License is provided with the Original Code and
-%%% Modifications, and is also available at www.nomasystems.com/license.txt.
-%%%
-%%% The Original Code and all software distributed under the License are
-%%% distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
-%%% EXPRESS OR IMPLIED, AND NOMASYSTEMS AND ALL CONTRIBUTORS HEREBY DISCLAIM
-%%% ALL SUCH WARRANTIES, INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF
-%%% MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR
-%%% NON-INFRINGEMENT. Please see the License for the specific language
-%%% governing rights and limitations under the License.
+%% Copyright 2024 Nomasystems, S.L. http://www.nomasystems.com
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License
 -module(nbully_wrk).
-
-%%% INCLUDE FILES
 
 %%% START/STOP EXPORTS
 -export([start_link/0, stop/0]).
@@ -25,7 +20,7 @@
 -export([init/1]).
 
 %%% SYS EXPORTS
--export([system_continue/3, system_terminate/4, system_code_change/4, write_debug/3]).
+-export([system_continue/3, system_terminate/4, system_code_change/4]).
 
 %%% EXTERNAL EXPORTS
 -export([leader/0, subscribe/0, unsubscribe/0]).
@@ -47,8 +42,8 @@
 -record(st, {
     leader = undefined,
     timeout = infinity,
-    nodes = [] :: {node(), reference(), term()},
-    subscribers = [] :: {pid(), reference()}
+    nodes = [] :: [{node(), reference(), term()}],
+    subscribers = [] :: [{pid(), reference()}]
 }).
 
 %%%-----------------------------------------------------------------------------
@@ -84,9 +79,6 @@ system_terminate(Reason, _, _, _) ->
 
 system_code_change(Misc, _, _, _) ->
     {ok, Misc}.
-
-write_debug(Dev, Event, Name) ->
-    io:format(Dev, "~p event -> ~p~n", [Name, Event]).
 
 %%%-----------------------------------------------------------------------------
 %%% EXTERNAL EXPORTS
@@ -164,12 +156,8 @@ handle_down(Ref, St) ->
     end.
 
 handle_subscriber_down(Ref, St) ->
-    case lists:keytake(Ref, 2, St#st.subscribers) of
-        false ->
-            St;
-        {value, {_P, _R}, Subscribers} ->
-            St#st{subscribers = Subscribers}
-    end.
+    Subscribers = lists:keydelete(Ref, 2, St#st.subscribers),
+    St#st{subscribers = Subscribers}.
 
 monitor_bully_process(St, Node, Pid) ->
     case lists:keyfind(Pid, 2, St#st.nodes) of

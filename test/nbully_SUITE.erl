@@ -1,20 +1,17 @@
-%%% Copyright (c) 2009 Nomasystems, S.L., All Rights Reserved
-%%%
-%%% This file contains Original Code and/or Modifications of Original Code as
-%%% defined in and that are subject to the Nomasystems Public License version
-%%% 1.0 (the 'License'). You may not use this file except in compliance with
-%%% the License. BY USING THIS FILE YOU AGREE TO ALL TERMS AND CONDITIONS OF
-%%% THE LICENSE. A copy of the License is provided with the Original Code and
-%%% Modifications, and is also available at www.nomasystems.com/license.txt.
-%%%
-%%% The Original Code and all software distributed under the License are
-%%% distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
-%%% EXPRESS OR IMPLIED, AND NOMASYSTEMS AND ALL CONTRIBUTORS HEREBY DISCLAIM
-%%% ALL SUCH WARRANTIES, INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF
-%%% MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR
-%%% NON-INFRINGEMENT. Please see the License for the specific language
-%%% governing rights and limitations under the License.
--module('nbully_SUITE').
+%% Copyright 2024 Nomasystems, S.L. http://www.nomasystems.com
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License
+-module(nbully_SUITE).
 
 %%% EXTERNAL EXPORTS
 -compile([export_all, nowarn_export_all]).
@@ -26,7 +23,7 @@
 %%% EXTERNAL EXPORTS
 %%%-----------------------------------------------------------------------------
 all() ->
-    [api, api_neg, fault_tolerance].
+    [api, api_neg, fault_tolerance, multiple_repeated_subscriptions].
 
 %%%-----------------------------------------------------------------------------
 %%% INIT SUITE EXPORTS
@@ -82,7 +79,7 @@ api_neg(_Conf) ->
     Peers = start_peers(9),
     {ok, Subscriber} = subscriber_srv:start(),
     {Leader, _} = lists:max(Peers),
-    rpc:call(Leader, application, stop, [nbully]),
+    ok = rpc:call(Leader, application, stop, [nbully]),
 
     timer:sleep(500),
     NewLeader = nbully:leader(),
@@ -134,6 +131,20 @@ fault_tolerance(_Conf) ->
 
     0 = subscriber_srv:repeated_lead_msgs(),
     subscriber_srv:stop(),
+    ok.
+
+multiple_repeated_subscriptions() ->
+    [{userdata, [{doc, "Tests that multiple subscriptions are idempotent."}]}].
+
+multiple_repeated_subscriptions(_Conf) ->
+    Peers = start_peers(1),
+    subscriber_srv:start_link(),
+    ok = subscriber_srv:resubscribe(),
+    _Leader = wait_consensus(),
+    ok = subscriber_srv:unsubscribe(),
+    0 = subscriber_srv:repeated_lead_msgs(),
+    subscriber_srv:stop(),
+    stop_peers(Peers),
     ok.
 
 %%%-----------------------------------------------------------------------------
